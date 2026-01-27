@@ -1,18 +1,14 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/services/storage_service.dart';
+import '../../../core/providers/storage_provider.dart';
 import '../services/profile_service.dart';
 import '../../user/providers/user_provider.dart';
 
 /// Profile service provider
 final profileServiceProvider = Provider<ProfileService>((ref) {
   final firestoreService = ref.watch(firestoreServiceProvider);
-  // For MVP, we'll create StorageService with placeholder values
-  // In production, get these from AppConfig or environment variables
-  final storageService = StorageService(
-    cloudName: 'dvjqnfreo', // TODO: Configure from AppConfig
-    uploadPreset: 'foodloop', // TODO: Configure from AppConfig
-  );
+  // Use centralized StorageService from core providers
+  final storageService = ref.watch(storageServiceProvider);
   return ProfileService(
     firestoreService: firestoreService,
     storageService: storageService,

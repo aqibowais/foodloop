@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:foodloop/app.dart';
 import 'package:foodloop/core/navigation/page_transitions.dart';
 import 'package:foodloop/features/auth/presentation/screens/login_screen.dart';
 import 'package:foodloop/features/auth/providers/auth_provider.dart';

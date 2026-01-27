@@ -11,21 +11,27 @@ class ProfileService {
   ProfileService({
     required FirestoreService firestoreService,
     StorageService? storageService,
-  })  : _firestoreService = firestoreService,
-        _storageService = storageService;
+  }) : _firestoreService = firestoreService,
+       _storageService = storageService;
 
   /// Upload profile image to Cloudinary and return URL
+  /// Automatically compresses and resizes images for optimal upload
   Future<String?> uploadProfileImage(File imageFile, String userId) async {
     if (_storageService == null) {
-      // If no storage service configured, return null
-      // In production, you'd want to configure Cloudinary properly
-      return null;
+      throw Exception(
+        'Storage service not configured. Please configure Cloudinary.',
+      );
     }
 
     try {
-      final imageUrl = await _storageService.uploadImage(
+      // Upload with compression and size limits for profile images
+      // Using centralized folder structure from CloudinaryConfig
+      final imageUrl = await _storageService!.uploadImage(
         imageFile,
-        folder: 'profile_images',
+        folder: 'foodloop/profile_images/$userId',
+        maxWidth: 800, // Max width for profile images
+        maxHeight: 800, // Max height for profile images
+        quality: 85, // Good quality with compression
       );
       return imageUrl;
     } catch (e) {
@@ -38,4 +44,3 @@ class ProfileService {
     await _firestoreService.createOrUpdateUser(user);
   }
 }
-

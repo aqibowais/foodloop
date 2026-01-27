@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/food_listing_model.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../listings/presentation/screens/create_listing_screen.dart';
+import '../../../listings/presentation/screens/listing_detail_screen.dart';
+import '../../../listings/providers/listings_provider.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../user/providers/user_provider.dart';
+import '../../../auth/providers/auth_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -26,6 +31,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      setState(() {}); // Rebuild when search text changes
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -38,10 +51,56 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  FoodType? _getSelectedFoodType() {
+    if (_selectedCategoryIndex == 0) return null;
+    switch (_selectedCategoryIndex) {
+      case 1:
+        return FoodType.cooked;
+      case 2:
+        return FoodType.packaged;
+      case 3:
+        return FoodType.bakery;
+      case 4:
+        return FoodType.beverages;
+      default:
+        return null;
+    }
+  }
+
+  List<FoodListing> _applyLocalFilters(List<FoodListing> listings) {
+    var filtered = listings;
+
+    // Filter by food type
+    final selectedFoodType = _getSelectedFoodType();
+    if (selectedFoodType != null) {
+      filtered = filtered.where((l) => l.foodType == selectedFoodType).toList();
+    }
+
+    // Filter by search query
+    final searchQuery = _searchController.text.trim();
+    if (searchQuery.isNotEmpty) {
+      final queryLower = searchQuery.toLowerCase();
+      filtered = filtered
+          .where(
+            (l) =>
+                l.title.toLowerCase().contains(queryLower) ||
+                l.description.toLowerCase().contains(queryLower) ||
+                l.city.toLowerCase().contains(queryLower) ||
+                (l.area?.toLowerCase().contains(queryLower) ?? false),
+          )
+          .toList();
+    }
+
+    return filtered;
+  }
+
   @override
   Widget build(BuildContext context) {
     final userState = ref.watch(userControllerProvider);
     final user = userState.user;
+
+    // Get all available listings (no server-side filtering)
+    final listingsAsync = ref.watch(availableListingsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.black,
@@ -126,7 +185,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               height: 60,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
                 itemCount: _categories.length,
                 itemBuilder: (context, index) {
                   final isSelected = index == _selectedCategoryIndex;
@@ -182,86 +244,181 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             // Content area
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  // Available Listings section
-                  Row(
-                    children: [
-                      Text(
-                        'Available Listings',
-                        style: AppTypography.h3(
-                          color: AppColors.pureWhite,
-                          fontSize: 20,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  // Placeholder listing cards
-                  _buildListingCard(
-                    title: 'Fresh Biryani',
-                    location: 'Gulberg, Lahore',
-                    servings: 'Serves 4-5 people',
-                    imageUrl: null,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildListingCard(
-                    title: 'Packaged Snacks',
-                    location: 'DHA, Karachi',
-                    servings: 'Multiple items',
-                    imageUrl: null,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildListingCard(
-                    title: 'Leftover Pizza',
-                    location: 'F-7, Islamabad',
-                    servings: 'Serves 2-3 people',
-                    imageUrl: null,
-                  ),
-                  const SizedBox(height: 24),
-                  // Popular Food section
-                  Row(
-                    children: [
-                      Text(
-                        'Popular Food',
-                        style: AppTypography.h3(
-                          color: AppColors.pureWhite,
-                          fontSize: 20,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  // Empty state for now
-                  Container(
-                    padding: const EdgeInsets.all(40),
-                    decoration: BoxDecoration(
-                      color: AppColors.cardDark,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.lightGrey),
-                    ),
-                    child: Column(
+              child: listingsAsync.when(
+                data: (allListings) {
+                  // Apply local filters
+                  final listings = _applyLocalFilters(allListings);
+
+                  if (listings.isEmpty) {
+                    return ListView(
+                      padding: const EdgeInsets.all(20),
                       children: [
-                        Icon(
-                          Icons.food_bank_outlined,
-                          size: 64,
-                          color: AppColors.grey,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No listings yet',
-                          style: AppTypography.body(color: AppColors.grey),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Be the first to share food!',
-                          style: AppTypography.bodySmall(color: AppColors.grey),
+                        Container(
+                          padding: const EdgeInsets.all(40),
+                          decoration: BoxDecoration(
+                            color: AppColors.cardDark,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.lightGrey),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.food_bank_outlined,
+                                size: 64,
+                                color: AppColors.grey,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No listings found',
+                                style: AppTypography.body(
+                                  color: AppColors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Be the first to share food!',
+                                style: AppTypography.bodySmall(
+                                  color: AppColors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              ElevatedButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const CreateListingScreen(),
+                                    ),
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.accentGreen,
+                                  foregroundColor: AppColors.black,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.add, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Create Listing',
+                                      style: AppTypography.button(
+                                        color: AppColors.black,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
+                    );
+                  }
+
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      // Invalidate the provider to refresh
+                      ref.invalidate(availableListingsProvider);
+                      // Wait a bit for the refresh to complete
+                      await Future.delayed(const Duration(milliseconds: 500));
+                    },
+                    color: AppColors.accentGreen,
+                    backgroundColor: AppColors.cardDark,
+                    child: ListView(
+                      padding: const EdgeInsets.all(20),
+                      children: [
+                        // Available Listings section
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Available Listings',
+                              style: AppTypography.h3(
+                                color: AppColors.pureWhite,
+                                fontSize: 20,
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const CreateListingScreen(),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.add_circle_outline,
+                                color: AppColors.accentGreen,
+                                size: 20,
+                              ),
+                              label: Text(
+                                'Create',
+                                style: AppTypography.body(
+                                  color: AppColors.accentGreen,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        // Listing cards
+                        ...listings.map((listing) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ListingDetailScreen(
+                                      listingId: listing.id,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: _buildListingCard(
+                                listing: listing,
+                                currentUserId: ref
+                                    .read(currentUserProvider)
+                                    ?.uid,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ],
                     ),
+                  );
+                },
+                loading: () => const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.accentGreen,
                   ),
-                ],
+                ),
+                error: (error, stack) => Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error_outline, size: 64, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Error loading listings',
+                        style: AppTypography.body(color: Colors.red),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        error.toString(),
+                        style: AppTypography.bodySmall(color: AppColors.grey),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
@@ -286,9 +443,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildNavItem(Icons.home, 'Home', true),
-                _buildNavItem(Icons.notifications_outlined, 'Notifications', false),
+                _buildNavItem(
+                  Icons.notifications_outlined,
+                  'Notifications',
+                  false,
+                ),
                 _buildNavItem(Icons.shopping_cart_outlined, 'My Orders', false),
-                _buildNavItem(Icons.person_outline, 'Profile', false, onTap: _navigateToProfile),
+                _buildNavItem(
+                  Icons.person_outline,
+                  'Profile',
+                  false,
+                  onTap: _navigateToProfile,
+                ),
               ],
             ),
           ),
@@ -306,20 +472,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         shape: BoxShape.circle,
         border: Border.all(color: AppColors.accentGreen, width: 2),
       ),
-      child: Icon(
-        Icons.person,
-        size: size * 0.5,
-        color: AppColors.accentGreen,
-      ),
+      child: Icon(Icons.person, size: size * 0.5, color: AppColors.accentGreen),
     );
   }
 
   Widget _buildListingCard({
-    required String title,
-    required String location,
-    required String servings,
-    String? imageUrl,
+    required FoodListing listing,
+    String? currentUserId,
   }) {
+    final isDonor = currentUserId == listing.donorId;
+    final requestCountAsync = isDonor
+        ? ref.watch(
+            listingRequestCountProvider({
+              'listingId': listing.id,
+              'donorId': listing.donorId,
+            }),
+          )
+        : null;
+    final hasRequestedAsync =
+        !isDonor && currentUserId != null && listing.isAvailable
+        ? ref.watch(
+            hasUserRequestedProvider({
+              'listingId': listing.id,
+              'receiverId': currentUserId,
+            }),
+          )
+        : null;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.cardDark,
@@ -340,18 +518,56 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 topRight: Radius.circular(16),
               ),
             ),
-            child: imageUrl != null
+            child: listing.imageUrls.isNotEmpty
                 ? ClipRRect(
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(16),
                       topRight: Radius.circular(16),
                     ),
-                    child: Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return _buildImagePlaceholder();
-                      },
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.network(
+                          listing.imageUrls.first,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return _buildImagePlaceholder();
+                          },
+                        ),
+                        if (listing.isUrgent)
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withOpacity(0.9),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.access_time,
+                                    color: Colors.white,
+                                    size: 14,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Urgent',
+                                    style: AppTypography.caption(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   )
                 : _buildImagePlaceholder(),
@@ -362,12 +578,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: AppTypography.h3(
-                    color: AppColors.pureWhite,
-                    fontSize: 18,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        listing.title,
+                        style: AppTypography.h3(
+                          color: AppColors.pureWhite,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _getFoodTypeColor(
+                          listing.foodType,
+                        ).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _getFoodTypeColor(listing.foodType),
+                        ),
+                      ),
+                      child: Text(
+                        _getFoodTypeLabel(listing.foodType),
+                        style: AppTypography.caption(
+                          color: _getFoodTypeColor(listing.foodType),
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -378,9 +622,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       size: 16,
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      location,
-                      style: AppTypography.bodySmall(color: AppColors.grey),
+                    Expanded(
+                      child: Text(
+                        '${listing.area}, ${listing.city}',
+                        style: AppTypography.bodySmall(color: AppColors.grey),
+                      ),
                     ),
                   ],
                 ),
@@ -394,9 +640,115 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      servings,
+                      'Serves ${listing.servings}',
                       style: AppTypography.bodySmall(
                         color: AppColors.accentGreen,
+                      ),
+                    ),
+                    // Request count for donors
+                    if (isDonor && requestCountAsync != null) ...[
+                      const SizedBox(width: 16),
+                      requestCountAsync.when(
+                        data: (count) {
+                          if (count > 0) {
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.notifications_active,
+                                  color: AppColors.accentGreen,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$count request${count > 1 ? 's' : ''}',
+                                  style: AppTypography.bodySmall(
+                                    color: AppColors.accentGreen,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+                          return const SizedBox();
+                        },
+                        loading: () => const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.accentGreen,
+                          ),
+                        ),
+                        error: (_, __) => const SizedBox(),
+                      ),
+                    ],
+                    // Requested status for receivers
+                    if (!isDonor && hasRequestedAsync != null) ...[
+                      const SizedBox(width: 16),
+                      hasRequestedAsync.when(
+                        data: (hasRequested) {
+                          if (hasRequested) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.accentGreen.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.accentGreen,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.check_circle,
+                                    color: AppColors.accentGreen,
+                                    size: 14,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Requested',
+                                    style: AppTypography.caption(
+                                      color: AppColors.accentGreen,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                          return const SizedBox();
+                        },
+                        loading: () => const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.accentGreen,
+                          ),
+                        ),
+                        error: (_, __) => const SizedBox(),
+                      ),
+                    ],
+                    const Spacer(),
+                    Icon(
+                      Icons.access_time,
+                      color: listing.isUrgent ? Colors.orange : AppColors.grey,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _formatExpiryTime(listing.expiryDate),
+                      style: AppTypography.bodySmall(
+                        color: listing.isUrgent
+                            ? Colors.orange
+                            : AppColors.grey,
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -410,13 +762,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildImagePlaceholder() {
-    return Center(
-      child: Icon(
-        Icons.fastfood,
-        size: 64,
-        color: AppColors.grey,
-      ),
-    );
+    return Center(child: Icon(Icons.fastfood, size: 64, color: AppColors.grey));
   }
 
   Widget _buildNavItem(
@@ -447,15 +793,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
     );
   }
+
+  Color _getFoodTypeColor(FoodType type) {
+    switch (type) {
+      case FoodType.cooked:
+        return AppColors.accentGreen;
+      case FoodType.packaged:
+        return Colors.blue;
+      case FoodType.bakery:
+        return Colors.orange;
+      case FoodType.beverages:
+        return Colors.purple;
+    }
+  }
+
+  String _getFoodTypeLabel(FoodType type) {
+    switch (type) {
+      case FoodType.cooked:
+        return 'Cooked';
+      case FoodType.packaged:
+        return 'Packaged';
+      case FoodType.bakery:
+        return 'Bakery';
+      case FoodType.beverages:
+        return 'Beverages';
+    }
+  }
+
+  String _formatExpiryTime(DateTime expiry) {
+    final now = DateTime.now();
+    final difference = expiry.difference(now);
+
+    if (difference.inHours < 6) {
+      return '${difference.inHours}h ${difference.inMinutes % 60}m';
+    } else if (difference.inDays < 1) {
+      return '${difference.inHours}h';
+    } else {
+      return '${difference.inDays}d';
+    }
+  }
 }
 
 class _CategoryItem {
   final IconData icon;
   final String label;
 
-  const _CategoryItem({
-    required this.icon,
-    required this.label,
-  });
+  const _CategoryItem({required this.icon, required this.label});
 }
-

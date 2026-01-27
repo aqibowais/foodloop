@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/navigation/page_transitions.dart';
+import '../../../../core/services/onboarding_service.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../auth/presentation/screens/signup_screen.dart';
 
@@ -61,12 +62,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _goToLogin();
   }
 
-  void _goToSignUp() {
-    Navigator.push(context, FadePageRoute(child: const SignUpScreen()));
+  Future<void> _goToSignUp() async {
+    // Mark onboarding as completed
+    await OnboardingService.setOnboardingCompleted();
+    if (mounted) {
+      Navigator.push(context, FadePageRoute(child: const SignUpScreen()));
+    }
   }
 
-  void _goToLogin() {
-    Navigator.push(context, FadePageRoute(child: const LoginScreen()));
+  Future<void> _goToLogin() async {
+    // Mark onboarding as completed
+    await OnboardingService.setOnboardingCompleted();
+    if (mounted) {
+      Navigator.push(context, FadePageRoute(child: const LoginScreen()));
+    }
   }
 
   @override
@@ -87,7 +96,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Image.asset(
-                        'assets/icons/app_icon.png',
+                        'assets/icons/app_icon2.png',
                         height: 36,
                         width: 36,
                         fit: BoxFit.cover,
@@ -138,7 +147,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(32),
                                   child: Image.asset(
-                                    'assets/icons/app_icon.png',
+                                    'assets/icons/app_icon2.png',
                                     width: 140,
                                     height: 140,
                                     fit: BoxFit.cover,

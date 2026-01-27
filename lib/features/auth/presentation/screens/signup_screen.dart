@@ -115,7 +115,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(32),
                         child: Image.asset(
-                          'assets/icons/app_icon.png',
+                          'assets/icons/app_icon2.png',
                           height: 100,
                           width: 100,
                           fit: BoxFit.cover,

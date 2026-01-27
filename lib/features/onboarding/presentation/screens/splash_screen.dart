@@ -5,8 +5,10 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/navigation/page_transitions.dart';
+import '../../../../core/services/onboarding_service.dart';
 import '../screens/intro_screen.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../../app.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -62,18 +64,33 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     final authState = ref.read(authStateProvider);
     authState.when(
-      data: (user) {
+      data: (user) async {
         if (user == null) {
-          Navigator.pushReplacement(
-            context,
-            FadePageRoute(child: const OnboardingScreen()),
-          );
+          // Check if onboarding has been completed
+          final onboardingCompleted = await OnboardingService.isOnboardingCompleted();
+          if (mounted) {
+            if (onboardingCompleted) {
+              // Onboarding completed, go directly to login
+              Navigator.pushReplacement(
+                context,
+                FadePageRoute(child: const LoginScreen()),
+              );
+            } else {
+              // First time, show onboarding
+              Navigator.pushReplacement(
+                context,
+                FadePageRoute(child: const OnboardingScreen()),
+              );
+            }
+          }
         } else {
           // User is logged in, navigate to AuthWrapper which will show MainScreen
-          Navigator.pushReplacement(
-            context,
-            FadePageRoute(child: const AuthWrapper()),
-          );
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              FadePageRoute(child: const AuthWrapper()),
+            );
+          }
         }
       },
       loading: () {
@@ -84,12 +101,22 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           }
         });
       },
-      error: (error, stack) {
-        // On error, go to intro screen
-        Navigator.pushReplacement(
-          context,
-          FadePageRoute(child: const OnboardingScreen()),
-        );
+      error: (error, stack) async {
+        // On error, check onboarding status
+        final onboardingCompleted = await OnboardingService.isOnboardingCompleted();
+        if (mounted) {
+          if (onboardingCompleted) {
+            Navigator.pushReplacement(
+              context,
+              FadePageRoute(child: const LoginScreen()),
+            );
+          } else {
+            Navigator.pushReplacement(
+              context,
+              FadePageRoute(child: const OnboardingScreen()),
+            );
+          }
+        }
       },
     );
   }
@@ -118,7 +145,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   ClipRRect(
                     borderRadius: BorderRadius.circular(28),
                     child: Image.asset(
-                      'assets/icons/app_icon.png',
+                      'assets/icons/app_icon2.png',
                       width: 120,
                       height: 120,
                       fit: BoxFit.cover,

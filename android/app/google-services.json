@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "7592396010",
+    "project_id": "foodloop-22b31",
+    "storage_bucket": "foodloop-22b31.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:7592396010:android:4bbc2a06d561b49752c393",
+        "android_client_info": {
+          "package_name": "com.example.foodloop"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "7592396010-1dlf52j8hhc2dcaio12sjlbe3ccs7phq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.foodloop",
+            "certificate_hash": "a461bbb907d475140338d09c65a040990b6e0849"
+          }
+        },
+        {
+          "client_id": "7592396010-j23l1rpqkvtlj10g9291uq1fpsa4v7nb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOKptI2niKYL5iQl4Mj7EEPcerfc-JfwQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "7592396010-j23l1rpqkvtlj10g9291uq1fpsa4v7nb.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "7592396010-o1fnubk5lrig9alp10cmiktl9emu5ooj.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.foodloop"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

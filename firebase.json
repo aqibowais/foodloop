@@ -1,1 +1,25 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"foodloop-22b31","appId":"1:7592396010:android:4bbc2a06d561b49752c393","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"foodloop-22b31","configurations":{"android":"1:7592396010:android:4bbc2a06d561b49752c393","ios":"1:7592396010:ios:c3f78c2a623ef19852c393"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "foodloop-22b31",
+          "appId": "1:7592396010:android:4bbc2a06d561b49752c393",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "foodloop-22b31",
+          "configurations": {
+            "android": "1:7592396010:android:4bbc2a06d561b49752c393",
+            "ios": "1:7592396010:ios:c3f78c2a623ef19852c393"
+          }
+        }
+      }
+    }
+  }
+}

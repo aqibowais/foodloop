@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/onboarding/presentation/screens/intro_screen.dart';
+import 'features/home/presentation/screens/home_screen.dart';
 
 /// Decides whether to show auth flow or main app based on Firebase auth state.
 class AuthWrapper extends ConsumerWidget {
@@ -41,24 +42,12 @@ class _SplashFallback extends StatelessWidget {
   }
 }
 
-/// Placeholder main shell for the authenticated part of FoodLoop.
-/// We'll replace this with the real Home / Orders / Profile tabs later.
+/// Main shell for the authenticated part of FoodLoop.
 class _MainShell extends StatelessWidget {
   const _MainShell();
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Container(
-        decoration: AppTheme.gradientDecoration,
-        child: const Center(
-          child: Text(
-            'FoodLoop Home (placeholder)',
-            style: TextStyle(color: Colors.white),
-          ),
-        ),
-      ),
-    );
+    return const HomeScreen();
   }
 }

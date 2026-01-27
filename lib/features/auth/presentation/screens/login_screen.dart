@@ -316,39 +316,57 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     VoidCallback? onToggleVisibility,
     String? Function(String?)? validator,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: TextFormField(
-        controller: controller,
-        obscureText: obscure,
-        cursorColor: Colors.white,
-        style: const TextStyle(color: Colors.white, fontSize: 16),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(color: Colors.white38, fontSize: 16),
-          prefixIcon: Icon(icon, color: Colors.white54, size: 20),
-          suffixIcon: isPassword
-              ? IconButton(
-                  icon: Icon(
-                    obscure ? Icons.visibility_off : Icons.visibility,
-                    color: Colors.white54,
-                    size: 20,
-                  ),
-                  onPressed: onToggleVisibility,
-                )
-              : null,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
+    return TextFormField(
+      controller: controller,
+      obscureText: obscure,
+      cursorColor: Colors.white,
+      style: const TextStyle(color: Colors.white, fontSize: 16),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Colors.white38, fontSize: 16),
+        prefixIcon: Icon(icon, color: Colors.white54, size: 20),
+        suffixIcon: isPassword
+            ? IconButton(
+                icon: Icon(
+                  obscure ? Icons.visibility_off : Icons.visibility,
+                  color: Colors.white54,
+                  size: 20,
+                ),
+                onPressed: onToggleVisibility,
+              )
+            : null,
+        // All borders below are rounded and consistent; no extra parent container needed.
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.05),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(
+            color: Colors.white.withOpacity(0.32),
+            width: 2,
           ),
         ),
-        validator: validator,
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.red.withOpacity(0.8), width: 1),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.red, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
+      validator: validator,
     );
   }
 }

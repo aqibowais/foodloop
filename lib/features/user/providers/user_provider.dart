@@ -77,12 +77,22 @@ class UserController extends StateNotifier<UserState> {
 
   FirestoreService get _firestoreService => _ref.read(firestoreServiceProvider);
 
-  Future<void> updateProfile({String? displayName}) async {
+  Future<void> updateProfile({
+    String? displayName,
+    String? city,
+    String? area,
+    String? organizationName,
+  }) async {
     if (state.user == null) return;
 
     try {
       state = state.copyWith(isLoading: true);
-      final updatedUser = state.user!.copyWith(displayName: displayName);
+      final updatedUser = state.user!.copyWith(
+        displayName: displayName,
+        city: city,
+        area: area,
+        organizationName: organizationName,
+      );
       await _firestoreService.createOrUpdateUser(updatedUser);
 
       // Also update Firebase Auth display name if possible

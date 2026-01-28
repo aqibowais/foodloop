@@ -1,23 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/models/food_listing_model.dart';
 import '../../../../core/models/food_request_model.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/app_toast.dart';
-import '../../providers/listings_provider.dart';
+import '../../../../core/utils/phone_validator.dart';
+import '../../../../core/models/user_model.dart';
+import '../../../user/providers/user_provider.dart'
+    show firestoreServiceProvider;
+import '../../providers/listings_provider.dart'
+    show
+        ListingRequestsKey,
+        listingRequestsProvider,
+        listingsControllerProvider,
+        availableListingsProvider,
+        hasUserRequestedProvider,
+        HasUserRequestedKey,
+        listingByIdProvider;
 import '../../../../features/auth/providers/auth_provider.dart';
 import 'edit_listing_screen.dart';
 
 class ListingDetailScreen extends ConsumerStatefulWidget {
   final String listingId;
 
-  const ListingDetailScreen({
-    super.key,
-    required this.listingId,
-  });
+  const ListingDetailScreen({super.key, required this.listingId});
 
   @override
   ConsumerState<ListingDetailScreen> createState() =>
@@ -42,7 +53,10 @@ class _ListingDetailScreenState extends ConsumerState<ListingDetailScreen> {
     );
   }
 
-  Future<void> _showDeleteDialog(BuildContext context, FoodListing listing) async {
+  Future<void> _showDeleteDialog(
+    BuildContext context,
+    FoodListing listing,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -134,7 +148,10 @@ class _ListingDetailScreenState extends ConsumerState<ListingDetailScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.accentGreen, width: 2),
+                  borderSide: const BorderSide(
+                    color: AppColors.accentGreen,
+                    width: 2,
+                  ),
                 ),
               ),
             ),
@@ -174,14 +191,16 @@ class _ListingDetailScreenState extends ConsumerState<ListingDetailScreen> {
   }
 
   Future<void> _sendRequest() async {
-    final listingAsync = ref.read(availableListingsProvider);
+    final listingAsync = ref.read(listingByIdProvider(widget.listingId));
 
-    // Get listing from stream
+    // Get listing
     final listing = await listingAsync.when(
-      data: (listings) => listings.firstWhere(
-        (l) => l.id == widget.listingId,
-        orElse: () => throw Exception('Listing not found'),
-      ),
+      data: (listing) {
+        if (listing == null) {
+          throw Exception('Listing not found');
+        }
+        return listing;
+      },
       loading: () => throw Exception('Loading...'),
       error: (_, __) => throw Exception('Error loading listing'),
     );
@@ -239,21 +258,22 @@ class _ListingDetailScreenState extends ConsumerState<ListingDetailScreen> {
 
   Future<void> _refreshListing() async {
     // Invalidate providers to force refresh
+    ref.invalidate(listingByIdProvider(widget.listingId));
     ref.invalidate(availableListingsProvider);
     final currentUser = ref.read(currentUserProvider);
     if (currentUser != null) {
       // Get listing to find donorId
-      final listingAsync = ref.read(availableListingsProvider);
-      listingAsync.whenData((listings) {
-        final listing = listings.firstWhere(
-          (l) => l.id == widget.listingId,
-          orElse: () => throw Exception('Listing not found'),
-        );
-        if (currentUser.uid == listing.donorId) {
-          ref.invalidate(listingRequestsProvider({
-            'listingId': widget.listingId,
-            'donorId': listing.donorId,
-          }));
+      final listingAsync = ref.read(listingByIdProvider(widget.listingId));
+      listingAsync.whenData((listing) {
+        if (listing != null && currentUser.uid == listing.donorId) {
+          ref.invalidate(
+            listingRequestsProvider(
+              ListingRequestsKey(
+                listingId: widget.listingId,
+                donorId: listing.donorId,
+              ),
+            ),
+          );
         }
       });
     }
@@ -263,36 +283,96 @@ class _ListingDetailScreenState extends ConsumerState<ListingDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final currentUser = ref.watch(currentUserProvider);
-    final listingAsync = ref.watch(availableListingsProvider);
+    // Use listingByIdProvider to fetch listing by ID regardless of status
+    final listingAsync = ref.watch(listingByIdProvider(widget.listingId));
 
     return listingAsync.when(
-      data: (listings) {
-        final listing = listings.firstWhere(
-          (l) => l.id == widget.listingId,
-          orElse: () => throw Exception('Listing not found'),
-        );
+      data: (listing) {
+        if (listing == null) {
+          return Scaffold(
+            backgroundColor: AppColors.black,
+            appBar: AppBar(
+              backgroundColor: Colors.transparent,
+              title: Text(
+                'Listing Not Found',
+                style: AppTypography.h3(color: AppColors.pureWhite),
+              ),
+            ),
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 64),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Listing not found',
+                    style: AppTypography.h3(color: AppColors.pureWhite),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'This listing may have been deleted or is no longer available.',
+                    style: AppTypography.body(color: AppColors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accentGreen,
+                      foregroundColor: AppColors.black,
+                    ),
+                    child: const Text('Go Back'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
 
         final isDonor = currentUser?.uid == listing.donorId;
         print('👤 [ListingDetail] User check:');
         print('   - currentUser?.uid: ${currentUser?.uid}');
         print('   - listing.donorId: ${listing.donorId}');
         print('   - isDonor: $isDonor');
-        
-        final requestsAsync = isDonor && currentUser != null
-            ? ref.watch(listingRequestsProvider({
-                'listingId': widget.listingId,
-                'donorId': listing.donorId,
-              }))
+
+        // Use a stable key to prevent provider recreation
+        // Create the key once and reuse it
+        final requestsKey = isDonor && currentUser != null
+            ? ListingRequestsKey(
+                listingId: widget.listingId,
+                donorId: listing.donorId,
+              )
             : null;
-        
-        print('   - requestsAsync: ${requestsAsync != null ? "created" : "null"}');
+
+        final requestsAsync = requestsKey != null
+            ? ref.watch(listingRequestsProvider(requestsKey))
+            : null;
+
+        print(
+          '   - requestsAsync: ${requestsAsync != null ? "created" : "null"}',
+        );
+        if (requestsAsync != null) {
+          print('   - requestsAsync.isLoading: ${requestsAsync.isLoading}');
+          print('   - requestsAsync.hasValue: ${requestsAsync.hasValue}');
+          print('   - requestsAsync.hasError: ${requestsAsync.hasError}');
+          if (requestsAsync.hasValue) {
+            print(
+              '   - requestsAsync.value: ${requestsAsync.value?.length ?? 0} requests',
+            );
+          }
+        }
 
         // Check if receiver has already requested
-        final hasRequestedAsync = !isDonor && currentUser != null && listing.isAvailable
-            ? ref.watch(hasUserRequestedProvider({
-                'listingId': widget.listingId,
-                'receiverId': currentUser.uid,
-              }))
+        final hasRequestedAsync =
+            !isDonor && currentUser != null && listing.isAvailable
+            ? ref.watch(
+                hasUserRequestedProvider(
+                  HasUserRequestedKey(
+                    listingId: widget.listingId,
+                    receiverId: currentUser.uid,
+                  ),
+                ),
+              )
             : null;
 
         return Scaffold(
@@ -302,466 +382,509 @@ class _ListingDetailScreenState extends ConsumerState<ListingDetailScreen> {
             color: AppColors.accentGreen,
             backgroundColor: AppColors.cardDark,
             child: CustomScrollView(
-            slivers: [
-              // App Bar with image
-              SliverAppBar(
-                expandedHeight: 300,
-                pinned: true,
-                backgroundColor: AppColors.cardDark,
-                flexibleSpace: FlexibleSpaceBar(
-                  background: listing.imageUrls.isNotEmpty
-                      ? Image.network(
-                          listing.imageUrls.first,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: AppColors.cardDark,
-                              child: const Center(
-                                child: Icon(
-                                  Icons.image_not_supported,
-                                  color: AppColors.grey,
-                                  size: 64,
-                                ),
-                              ),
-                            );
-                          },
-                        )
-                      : Container(
-                          color: AppColors.cardDark,
-                          child: const Center(
-                            child: Icon(
-                              Icons.fastfood,
-                              color: AppColors.grey,
-                              size: 64,
-                            ),
-                          ),
-                        ),
-                ),
-              ),
-              // Content
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title and Status
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              listing.title,
-                              style: AppTypography.h1(
-                                color: AppColors.pureWhite,
-                                fontSize: 24,
-                              ),
-                            ),
-                          ),
-                          _buildStatusBadge(listing.status),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Food Type and Location
-                      Row(
-                        children: [
-                          Icon(
-                            _getFoodTypeIcon(listing.foodType),
-                            color: AppColors.accentGreen,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _getFoodTypeLabel(listing.foodType),
-                            style: AppTypography.bodySmall(
-                              color: AppColors.grey,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          const Icon(
-                            Icons.location_on,
-                            color: AppColors.accentGreen,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${listing.area}, ${listing.city}',
-                            style: AppTypography.bodySmall(
-                              color: AppColors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Description
-                      Text(
-                        'Description',
-                        style: AppTypography.h3(color: AppColors.pureWhite),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        listing.description,
-                        style: AppTypography.body(color: AppColors.grey),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Details Grid
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.cardDark,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          children: [
-                            _buildDetailRow(
-                              icon: Icons.people,
-                              label: 'Servings',
-                              value: '${listing.servings}',
-                            ),
-                            const Divider(color: AppColors.lightGrey),
-                            _buildDetailRow(
-                              icon: Icons.access_time,
-                              label: 'Expires',
-                              value: _formatExpiryDate(listing.expiryDate),
-                              isUrgent: listing.isUrgent,
-                            ),
-                            if (listing.address != null) ...[
-                              const Divider(color: AppColors.lightGrey),
-                              _buildDetailRow(
-                                icon: Icons.location_on,
-                                label: 'Address',
-                                value: listing.address!,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Image Gallery
-                      if (listing.imageUrls.length > 1) ...[
-                        Text(
-                          'More Images',
-                          style: AppTypography.h3(color: AppColors.pureWhite),
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 100,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: listing.imageUrls.length - 1,
-                            itemBuilder: (context, index) {
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 12),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Image.network(
-                                    listing.imageUrls[index + 1],
-                                    width: 100,
-                                    height: 100,
-                                    fit: BoxFit.cover,
+              slivers: [
+                // App Bar with image
+                SliverAppBar(
+                  expandedHeight: 300,
+                  pinned: true,
+                  backgroundColor: AppColors.cardDark,
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: listing.imageUrls.isNotEmpty
+                        ? Image.network(
+                            listing.imageUrls.first,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: AppColors.cardDark,
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.image_not_supported,
+                                    color: AppColors.grey,
+                                    size: 64,
                                   ),
                                 ),
                               );
                             },
+                          )
+                        : Container(
+                            color: AppColors.cardDark,
+                            child: const Center(
+                              child: Icon(
+                                Icons.fastfood,
+                                color: AppColors.grey,
+                                size: 64,
+                              ),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
-
-                      // Donor View: Show Requests
-                      if (isDonor) ...[
+                  ),
+                ),
+                // Content
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Title and Status
                         Row(
                           children: [
-                            Text(
-                              'Requests',
-                              style: AppTypography.h3(color: AppColors.pureWhite),
-                            ),
-                            const Spacer(),
-                            if (requestsAsync != null)
-                              requestsAsync.when(
-                                data: (requests) => Text(
-                                  '${requests.length} pending',
-                                  style: AppTypography.bodySmall(
-                                    color: AppColors.grey,
-                                  ),
+                            Expanded(
+                              child: Text(
+                                listing.title,
+                                style: AppTypography.h1(
+                                  color: AppColors.pureWhite,
+                                  fontSize: 24,
                                 ),
-                                loading: () => const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.accentGreen,
-                                  ),
-                                ),
-                                error: (_, __) => const SizedBox(),
                               ),
+                            ),
+                            _buildStatusBadge(listing.status),
                           ],
                         ),
                         const SizedBox(height: 12),
-                        requestsAsync?.when(
-                          data: (requests) {
-                            if (requests.isEmpty) {
-                              return Container(
-                                padding: const EdgeInsets.all(24),
-                                decoration: BoxDecoration(
-                                  color: AppColors.cardDark,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: AppColors.lightGrey),
-                                ),
-                                child: Center(
-                                  child: Column(
-                                    children: [
-                                      Icon(
-                                        Icons.inbox_outlined,
-                                        size: 48,
-                                        color: AppColors.grey,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        'No requests yet',
-                                        style: AppTypography.body(
-                                          color: AppColors.grey,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Share this listing to get requests',
-                                        style: AppTypography.bodySmall(
-                                          color: AppColors.grey,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }
-                            return Column(
-                              children: requests.map((request) {
-                                return _buildRequestCard(request, listing.id);
-                              }).toList(),
-                            );
-                          },
-                          loading: () {
-                            print('⏳ [ListingDetail] Requests loading...');
-                            return Container(
-                              padding: const EdgeInsets.all(40),
-                              decoration: BoxDecoration(
-                                color: AppColors.cardDark,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const CircularProgressIndicator(
-                                    color: AppColors.accentGreen,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Loading requests...',
-                                    style: AppTypography.bodySmall(
-                                      color: AppColors.grey,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                          error: (error, stack) {
-                            print('❌ [ListingDetail] Requests error: $error');
-                            print('   - Stack: $stack');
-                            return Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: AppColors.cardDark,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.red.withOpacity(0.3)),
-                              ),
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    Icons.error_outline,
-                                    color: Colors.red,
-                                    size: 32,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Error loading requests',
-                                    style: AppTypography.body(
-                                      color: Colors.red,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    error.toString(),
-                                    style: AppTypography.bodySmall(
-                                      color: AppColors.grey,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ) ?? const SizedBox(),
-                      ],
 
-                      // Donor View: Edit/Delete Buttons
-                      if (isDonor) ...[
-                        const SizedBox(height: 16),
+                        // Food Type and Location
                         Row(
                           children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () => _navigateToEdit(context, listing),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.accentGreen,
-                                  side: const BorderSide(color: AppColors.accentGreen),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                ),
-                                icon: const Icon(Icons.edit, size: 20),
-                                label: Text(
-                                  'Edit',
-                                  style: AppTypography.button(
-                                    color: AppColors.accentGreen,
-                                  ),
-                                ),
+                            Icon(
+                              _getFoodTypeIcon(listing.foodType),
+                              color: AppColors.accentGreen,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _getFoodTypeLabel(listing.foodType),
+                              style: AppTypography.bodySmall(
+                                color: AppColors.grey,
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: () => _showDeleteDialog(context, listing),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red.withOpacity(0.2),
-                                  foregroundColor: Colors.red,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                  ),
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                ),
-                                icon: const Icon(Icons.delete_outline, size: 20),
-                                label: Text(
-                                  'Delete',
-                                  style: AppTypography.button(
-                                    color: Colors.red,
-                                  ),
-                                ),
+                            const SizedBox(width: 16),
+                            const Icon(
+                              Icons.location_on,
+                              color: AppColors.accentGreen,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${listing.area}, ${listing.city}',
+                              style: AppTypography.bodySmall(
+                                color: AppColors.grey,
                               ),
                             ),
                           ],
                         ),
-                      ],
+                        const SizedBox(height: 20),
 
-                      // Receiver View: Request Button
-                      if (!isDonor && listing.isAvailable) ...[
-                        hasRequestedAsync?.when(
-                          data: (hasRequested) {
-                            if (hasRequested) {
-                              return Container(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                decoration: BoxDecoration(
-                                  color: AppColors.cardDark,
-                                  borderRadius: BorderRadius.circular(24),
-                                  border: Border.all(color: AppColors.accentGreen),
+                        // Description
+                        Text(
+                          'Description',
+                          style: AppTypography.h3(color: AppColors.pureWhite),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          listing.description,
+                          style: AppTypography.body(color: AppColors.grey),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Details Grid
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.cardDark,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            children: [
+                              _buildDetailRow(
+                                icon: Icons.people,
+                                label: 'Servings',
+                                value: '${listing.servings}',
+                              ),
+                              const Divider(color: AppColors.lightGrey),
+                              _buildDetailRow(
+                                icon: Icons.access_time,
+                                label: 'Expires',
+                                value: _formatExpiryDate(listing.expiryDate),
+                                isUrgent: listing.isUrgent,
+                              ),
+                              if (listing.address != null) ...[
+                                const Divider(color: AppColors.lightGrey),
+                                _buildDetailRow(
+                                  icon: Icons.location_on,
+                                  label: 'Address',
+                                  value: listing.address!,
                                 ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(
-                                      Icons.check_circle,
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Image Gallery
+                        if (listing.imageUrls.length > 1) ...[
+                          Text(
+                            'More Images',
+                            style: AppTypography.h3(color: AppColors.pureWhite),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 100,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: listing.imageUrls.length - 1,
+                              itemBuilder: (context, index) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 12),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.network(
+                                      listing.imageUrls[index + 1],
+                                      width: 100,
+                                      height: 100,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+
+                        // Donor View: Show Requests
+                        if (isDonor) ...[
+                          Row(
+                            children: [
+                              Text(
+                                'Requests',
+                                style: AppTypography.h3(
+                                  color: AppColors.pureWhite,
+                                ),
+                              ),
+                              const Spacer(),
+                              if (requestsAsync != null)
+                                requestsAsync.when(
+                                  data: (requests) => Text(
+                                    '${requests.length} pending',
+                                    style: AppTypography.bodySmall(
+                                      color: AppColors.grey,
+                                    ),
+                                  ),
+                                  loading: () => const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
                                       color: AppColors.accentGreen,
-                                      size: 20,
                                     ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Request Sent',
-                                      style: AppTypography.button(
-                                        color: AppColors.accentGreen,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }
-                            return SizedBox(
-                              height: 56,
-                              child: ElevatedButton(
-                                onPressed: () => _showRequestDialogWidget(context, listing),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.accentGreen,
-                                  foregroundColor: AppColors.black,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(24),
                                   ),
-                                  elevation: 0,
+                                  error: (_, __) => const SizedBox(),
                                 ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(Icons.send, size: 20),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Send Request',
-                                      style: AppTypography.button(
-                                        color: AppColors.black,
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          requestsAsync?.when(
+                                data: (requests) {
+                                  if (requests.isEmpty) {
+                                    return Container(
+                                      padding: const EdgeInsets.all(24),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.cardDark,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: AppColors.lightGrey,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Column(
+                                          children: [
+                                            Icon(
+                                              Icons.inbox_outlined,
+                                              size: 48,
+                                              color: AppColors.grey,
+                                            ),
+                                            const SizedBox(height: 12),
+                                            Text(
+                                              'No requests yet',
+                                              style: AppTypography.body(
+                                                color: AppColors.grey,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Share this listing to get requests',
+                                              style: AppTypography.bodySmall(
+                                                color: AppColors.grey,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  return Column(
+                                    children: requests.map((request) {
+                                      return _buildRequestCard(
+                                        request,
+                                        listing.id,
+                                      );
+                                    }).toList(),
+                                  );
+                                },
+                                loading: () {
+                                  print(
+                                    '⏳ [ListingDetail] Requests loading...',
+                                  );
+                                  return Container(
+                                    padding: const EdgeInsets.all(40),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.cardDark,
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const CircularProgressIndicator(
+                                          color: AppColors.accentGreen,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'Loading requests...',
+                                          style: AppTypography.bodySmall(
+                                            color: AppColors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                                error: (error, stack) {
+                                  print(
+                                    '❌ [ListingDetail] Requests error: $error',
+                                  );
+                                  print('   - Stack: $stack');
+                                  return Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.cardDark,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: Colors.red.withOpacity(0.3),
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                          loading: () => const SizedBox(
-                            height: 56,
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                color: AppColors.accentGreen,
-                                strokeWidth: 2,
-                              ),
-                            ),
-                          ),
-                          error: (_, __) => SizedBox(
-                            height: 56,
-                            child: ElevatedButton(
-                              onPressed: () => _showRequestDialogWidget(context, listing),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.accentGreen,
-                                foregroundColor: AppColors.black,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.send, size: 20),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Send Request',
+                                    child: Column(
+                                      children: [
+                                        Icon(
+                                          Icons.error_outline,
+                                          color: Colors.red,
+                                          size: 32,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Error loading requests',
+                                          style: AppTypography.body(
+                                            color: Colors.red,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          error.toString(),
+                                          style: AppTypography.bodySmall(
+                                            color: AppColors.grey,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ) ??
+                              const SizedBox(),
+                        ],
+
+                        // Donor View: Edit/Delete Buttons
+                        if (isDonor) ...[
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () =>
+                                      _navigateToEdit(context, listing),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.accentGreen,
+                                    side: const BorderSide(
+                                      color: AppColors.accentGreen,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(24),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.edit, size: 20),
+                                  label: Text(
+                                    'Edit',
                                     style: AppTypography.button(
-                                      color: AppColors.black,
+                                      color: AppColors.accentGreen,
                                     ),
                                   ),
-                                ],
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () =>
+                                      _showDeleteDialog(context, listing),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red.withOpacity(
+                                      0.2,
+                                    ),
+                                    foregroundColor: Colors.red,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(24),
+                                    ),
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 20,
+                                  ),
+                                  label: Text(
+                                    'Delete',
+                                    style: AppTypography.button(
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ) ?? const SizedBox(),
+                        ],
+
+                        // Receiver View: Request Button
+                        if (!isDonor && listing.isAvailable) ...[
+                          hasRequestedAsync?.when(
+                                data: (hasRequested) {
+                                  if (hasRequested) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.cardDark,
+                                        borderRadius: BorderRadius.circular(24),
+                                        border: Border.all(
+                                          color: AppColors.accentGreen,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(
+                                            Icons.check_circle,
+                                            color: AppColors.accentGreen,
+                                            size: 20,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Request Sent',
+                                            style: AppTypography.button(
+                                              color: AppColors.accentGreen,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }
+                                  return SizedBox(
+                                    height: 56,
+                                    child: ElevatedButton(
+                                      onPressed: () => _showRequestDialogWidget(
+                                        context,
+                                        listing,
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.accentGreen,
+                                        foregroundColor: AppColors.black,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            24,
+                                          ),
+                                        ),
+                                        elevation: 0,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(Icons.send, size: 20),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Send Request',
+                                            style: AppTypography.button(
+                                              color: AppColors.black,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                                loading: () => const SizedBox(
+                                  height: 56,
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      color: AppColors.accentGreen,
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                ),
+                                error: (_, __) => SizedBox(
+                                  height: 56,
+                                  child: ElevatedButton(
+                                    onPressed: () => _showRequestDialogWidget(
+                                      context,
+                                      listing,
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.accentGreen,
+                                      foregroundColor: AppColors.black,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                      ),
+                                      elevation: 0,
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        const Icon(Icons.send, size: 20),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Send Request',
+                                          style: AppTypography.button(
+                                            color: AppColors.black,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ) ??
+                              const SizedBox(),
+                        ],
+                        const SizedBox(height: 24),
                       ],
-                      const SizedBox(height: 24),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
             ),
           ),
         );
@@ -814,10 +937,7 @@ class _ListingDetailScreenState extends ConsumerState<ListingDetailScreen> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color),
       ),
-      child: Text(
-        label,
-        style: AppTypography.caption(color: color),
-      ),
+      child: Text(label, style: AppTypography.caption(color: color)),
     );
   }
 
@@ -858,13 +978,17 @@ class _ListingDetailScreenState extends ConsumerState<ListingDetailScreen> {
   }
 
   Widget _buildRequestCard(FoodRequest request, String listingId) {
+    final isAccepted = request.isAccepted;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.cardDark,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.lightGrey),
+        border: Border.all(
+          color: isAccepted ? AppColors.accentGreen : AppColors.lightGrey,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -877,6 +1001,25 @@ class _ListingDetailScreenState extends ConsumerState<ListingDetailScreen> {
                   style: AppTypography.body(color: AppColors.pureWhite),
                 ),
               ),
+              if (isAccepted)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentGreen.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Accepted',
+                    style: AppTypography.caption(
+                      color: AppColors.accentGreen,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              const SizedBox(width: 8),
               Text(
                 DateFormat('MMM d, h:mm a').format(request.createdAt),
                 style: AppTypography.caption(color: AppColors.grey),
@@ -891,40 +1034,137 @@ class _ListingDetailScreenState extends ConsumerState<ListingDetailScreen> {
             ),
           ],
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _rejectRequest(request.id, listingId),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    side: const BorderSide(color: Colors.red),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+          if (isAccepted) ...[
+            // Show contact button for accepted requests
+            FutureBuilder<UserModel?>(
+              future: _getReceiverUser(request.receiverId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SizedBox(
+                    height: 40,
+                    child: Center(
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.accentGreen,
+                        ),
+                      ),
                     ),
-                  ),
-                  child: const Text('Reject'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () => _acceptRequest(request.id, listingId),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.accentGreen,
-                    foregroundColor: AppColors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                  );
+                }
+                if (snapshot.hasData && snapshot.data != null) {
+                  final receiver = snapshot.data!;
+                  return ElevatedButton.icon(
+                    onPressed: () => _contactUser(receiver),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accentGreen,
+                      foregroundColor: AppColors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
+                    icon: const Icon(Icons.contact_phone, size: 20),
+                    label: const Text('Contact'),
+                  );
+                }
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardDark,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text('Accept'),
+                  child: Text(
+                    'Loading contact info...',
+                    style: AppTypography.bodySmall(color: AppColors.grey),
+                  ),
+                );
+              },
+            ),
+          ] else ...[
+            // Show Accept/Reject buttons for pending requests
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _rejectRequest(request.id, listingId),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Reject'),
+                  ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => _acceptRequest(request.id, listingId),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accentGreen,
+                      foregroundColor: AppColors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Accept'),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  Future<UserModel?> _getReceiverUser(String receiverId) async {
+    try {
+      final firestoreService = ref.read(firestoreServiceProvider);
+      return await firestoreService.getUser(receiverId);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> _contactUser(UserModel user) async {
+    if (user.phoneNumber != null && user.phoneNumber!.isNotEmpty) {
+      // Copy phone number to clipboard
+      await Clipboard.setData(ClipboardData(text: user.phoneNumber!));
+      if (mounted) {
+        AppToast.success(context, 'Phone number copied: ${user.phoneNumber}');
+      }
+
+      // Also try to open phone dialer
+      final phoneUrl = PhoneValidator.toTelUrl(user.phoneNumber);
+      if (phoneUrl != null) {
+        final uri = Uri.parse('tel:$phoneUrl');
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+        }
+      }
+    } else if (user.email.isNotEmpty) {
+      // Copy email to clipboard
+      await Clipboard.setData(ClipboardData(text: user.email));
+      if (mounted) {
+        AppToast.success(context, 'Email copied: ${user.email}');
+      }
+
+      // Also try to open email app
+      final uri = Uri.parse(
+        'mailto:${user.email}?subject=FoodLoop - Food Pickup Request',
+      );
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      }
+    } else {
+      if (mounted) {
+        AppToast.error(context, 'No contact information available');
+      }
+    }
   }
 
   String _formatExpiryDate(DateTime date) {
@@ -966,4 +1206,3 @@ class _ListingDetailScreenState extends ConsumerState<ListingDetailScreen> {
     }
   }
 }
-

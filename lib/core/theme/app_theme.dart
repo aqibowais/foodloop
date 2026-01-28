@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 import 'app_typography.dart';
 
@@ -19,6 +20,9 @@ class AppTheme {
 
   /// Dark theme inspired by FoodLoop UI
   static ThemeData get darkTheme {
+    // Import Google Fonts for Lexend
+    final textTheme = GoogleFonts.lexendTextTheme();
+    
     final base = ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
@@ -32,7 +36,8 @@ class AppTheme {
         onSecondary: AppColors.black,
         onSurface: AppColors.pureWhite,
       ),
-      textTheme: TextTheme(
+      // Use Lexend as the default font family
+      textTheme: textTheme.copyWith(
         displayLarge: AppTypography.h1(color: AppColors.pureWhite),
         headlineMedium: AppTypography.h3(color: AppColors.pureWhite),
         bodyLarge: AppTypography.body(color: AppColors.pureWhite),

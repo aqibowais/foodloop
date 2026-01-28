@@ -83,12 +83,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     return Container(
       decoration: AppTheme.gradientDecoration,
       child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              children: [
+      backgroundColor: Colors.transparent,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Column(
+            children: [
                 const SizedBox(height: 16),
                 // Top brand row
                 Row(
@@ -108,7 +108,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       style: AppTypography.h3(color: AppColors.pureWhite),
                     ),
                   ],
-                ),
+              ),
                 const SizedBox(height: 24),
                 // Onboarding pages with subtle slide/scale animation
                 Expanded(
@@ -141,8 +141,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                           child: Opacity(
                             opacity: opacity,
                             child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
                                 const Spacer(),
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(32),
@@ -163,14 +163,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 12),
-                                Text(
+                        Text(
                                   page.description,
                                   textAlign: TextAlign.center,
                                   style: AppTypography.body(
                                     color: AppColors.grey,
                                     fontSize: 15,
                                   ),
-                                ),
+                        ),
                                 const SizedBox(height: 18),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
@@ -187,11 +187,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(
+                        const Icon(
                                         Icons.eco_outlined,
                                         color: AppColors.accentGreen,
-                                        size: 18,
-                                      ),
+                          size: 18,
+                        ),
                                       const SizedBox(width: 8),
                                       Text(
                                         page.badge,
@@ -203,10 +203,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                                   ),
                                 ),
                                 const Spacer(flex: 2),
-                              ],
-                            ),
-                          ),
-                        ),
+                      ],
+                    ),
+                  ),
+                ),
                       );
                     },
                   ),
@@ -214,7 +214,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 const SizedBox(height: 12),
                 // Page indicators
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(_pages.length, (index) {
                     final isActive = index == _currentPage;
                     return AnimatedContainer(
@@ -234,7 +234,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 const SizedBox(height: 24),
                 // Bottom buttons
                 Row(
-                  children: [
+                      children: [
                     TextButton(
                       onPressed: _skip,
                       child: Text(
@@ -266,7 +266,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                               style: AppTypography.button(
                                 color: AppColors.black,
                               ).copyWith(fontSize: 15),
-                            ),
+                        ),
                             const SizedBox(width: 6),
                             const Icon(Icons.arrow_forward_rounded, size: 18),
                           ],
@@ -292,9 +292,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                           color: AppColors.accentGreen,
                         ).copyWith(fontWeight: FontWeight.w600),
                       ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
                 const SizedBox(height: 4),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -310,9 +310,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         style: AppTypography.bodySmall(
                           color: AppColors.accentGreen,
                         ).copyWith(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ],
+                ),
+              ),
+            ],
                 ),
                 const SizedBox(height: 24),
               ],

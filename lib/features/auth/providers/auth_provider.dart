@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/auth_service.dart';
+import '../../listings/providers/listings_provider.dart';
 
 /// Auth service provider
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
@@ -99,6 +100,14 @@ class AuthController extends StateNotifier<AuthState> {
     try {
       state = state.copyWith(isLoading: true);
       await _authService.signOut();
+      
+      // Invalidate all providers to clear cached data
+      _ref.invalidate(availableListingsProvider);
+      // Note: Other providers will be automatically invalidated when auth state changes
+      
+      // Small delay to ensure auth state propagates
+      await Future.delayed(const Duration(milliseconds: 300));
+      
       state = state.copyWith(isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());

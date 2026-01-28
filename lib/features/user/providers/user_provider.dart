@@ -82,6 +82,7 @@ class UserController extends StateNotifier<UserState> {
     String? city,
     String? area,
     String? organizationName,
+    String? phoneNumber,
   }) async {
     if (state.user == null) return;
 
@@ -92,6 +93,7 @@ class UserController extends StateNotifier<UserState> {
         city: city,
         area: area,
         organizationName: organizationName,
+        phoneNumber: phoneNumber,
       );
       await _firestoreService.createOrUpdateUser(updatedUser);
 

@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/app_toast.dart';
+import '../../../../core/utils/phone_validator.dart';
 import '../../providers/profile_provider.dart';
 import '../../../user/providers/user_provider.dart';
 
@@ -25,6 +26,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _cityController = TextEditingController();
   final _areaController = TextEditingController();
   final _organizationController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _imagePicker = ImagePicker();
 
   @override
@@ -33,6 +35,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _cityController.dispose();
     _areaController.dispose();
     _organizationController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -44,6 +47,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _cityController.text = user.city ?? '';
       _areaController.text = user.area ?? '';
       _organizationController.text = user.organizationName ?? '';
+      _phoneController.text = user.phoneNumber ?? '';
     }
   }
 
@@ -102,6 +106,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       organizationName: _organizationController.text.trim().isEmpty
           ? null
           : _organizationController.text.trim(),
+      phoneNumber: _phoneController.text.trim().isEmpty
+          ? null
+          : _phoneController.text.trim(),
     );
 
     if (!mounted) return;
@@ -151,13 +158,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Scaffold(
       backgroundColor: AppColors.black,
       appBar: AppBar(
-        automaticallyImplyLeading: true,
+        automaticallyImplyLeading: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.pureWhite),
-          onPressed: () => Navigator.pop(context),
-        ),
         title: Text(
           'Profile',
           style: AppTypography.h3(color: AppColors.pureWhite),
@@ -324,6 +327,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 enabled: isEditing,
                 extraHint: 'Leave empty if individual donor/receiver',
               ),
+              const SizedBox(height: 16),
+              // Phone Number
+              _buildProfileTextField(
+                controller: _phoneController,
+                hint: 'Phone Number (Optional)',
+                icon: Icons.phone_outlined,
+                enabled: isEditing,
+                keyboardType: TextInputType.phone,
+                validator: (value) {
+                  if (isEditing && value != null && value.trim().isNotEmpty) {
+                    if (!PhoneValidator.isValidPakistaniPhone(value.trim())) {
+                      return 'Please enter a valid Pakistani phone number (e.g., 03XX-XXXXXXX)';
+                    }
+                  }
+                  return null;
+                },
+                extraHint: 'Format: 03XX-XXXXXXX or +923XXXXXXXXX',
+              ),
               const SizedBox(height: 24),
               // Info text
               if (isEditing)
@@ -414,6 +435,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     VoidCallback? onToggleVisibility,
     String? Function(String?)? validator,
     String? extraHint,
+    TextInputType? keyboardType,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -422,6 +444,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           controller: controller,
           obscureText: obscure,
           enabled: enabled,
+          keyboardType: keyboardType,
+          validator: validator,
           cursorColor: Colors.white,
           style: const TextStyle(color: Colors.white, fontSize: 16),
           decoration: InputDecoration(
@@ -471,7 +495,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               vertical: 16,
             ),
           ),
-          validator: validator,
         ),
         if (extraHint != null && enabled)
           Padding(

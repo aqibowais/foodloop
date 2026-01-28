@@ -42,30 +42,56 @@ class ListingsService {
   /// All filtering (city, foodType, search) is done client-side
   Stream<List<FoodListing>> getAvailableListings() {
     try {
-      return _firestore
-          .collection(AppConstants.listingsCollection)
-          .where('status', isEqualTo: ListingStatus.available.name)
-          .orderBy('expiryDate', descending: false)
-          .snapshots()
-          .map((snapshot) {
-            var listings = snapshot.docs.map((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              return FoodListing.fromJson({'id': doc.id, ...data});
-            }).toList();
+      // Try with orderBy first, fallback to without if index missing
+      Stream<QuerySnapshot> stream;
+      try {
+        stream = _firestore
+            .collection(AppConstants.listingsCollection)
+            .where('status', isEqualTo: ListingStatus.available.name)
+            .orderBy('expiryDate', descending: false)
+            .snapshots();
+      } catch (e) {
+        // If orderBy fails (missing index), try without it
+        print('⚠️ [ListingsService] orderBy failed, trying without: $e');
+        stream = _firestore
+            .collection(AppConstants.listingsCollection)
+            .where('status', isEqualTo: ListingStatus.available.name)
+            .snapshots();
+      }
 
-            // Filter expired listings
-            listings = listings.where((l) => !l.isExpired).toList();
+      return stream.map((snapshot) {
+        print('📦 [ListingsService] Snapshot received: ${snapshot.docs.length} docs');
+        var listings = snapshot.docs.map((doc) {
+          try {
+            final data = doc.data() as Map<String, dynamic>;
+            final listing = FoodListing.fromJson({'id': doc.id, ...data});
+            print('   - Listing ${doc.id}: status=${listing.status.name}, expiry=${listing.expiryDate}, isExpired=${listing.isExpired}');
+            return listing;
+          } catch (e) {
+            print('❌ [ListingsService] Error parsing listing ${doc.id}: $e');
+            return null;
+          }
+        }).whereType<FoodListing>().toList();
 
-            // Sort by urgency (expiring soon first)
-            listings.sort((a, b) {
-              if (a.isUrgent && !b.isUrgent) return -1;
-              if (!a.isUrgent && b.isUrgent) return 1;
-              return a.expiryDate.compareTo(b.expiryDate);
-            });
+        print('   - After parsing: ${listings.length} listings');
+        
+        // Filter expired listings
+        final beforeExpiredFilter = listings.length;
+        listings = listings.where((l) => !l.isExpired).toList();
+        print('   - After expired filter: ${listings.length} listings (removed ${beforeExpiredFilter - listings.length})');
 
-            return listings;
-          });
+        // Sort by urgency (expiring soon first)
+        listings.sort((a, b) {
+          if (a.isUrgent && !b.isUrgent) return -1;
+          if (!a.isUrgent && b.isUrgent) return 1;
+          return a.expiryDate.compareTo(b.expiryDate);
+        });
+
+        print('✅ [ListingsService] Returning ${listings.length} available listings');
+        return listings;
+      });
     } catch (e) {
+      print('❌ [ListingsService] Error in getAvailableListings: $e');
       throw Exception('Error getting available listings: $e');
     }
   }
@@ -167,41 +193,61 @@ class ListingsService {
       print('   - donorId: $donorId');
       print('   - currentUserId: $currentUserId');
 
-      Query query = _firestore
-          .collection(AppConstants.requestsCollection)
-          .where('listingId', isEqualTo: listingId)
-          .where('status', isEqualTo: RequestStatus.pending.name);
-
-      // If donorId is provided and matches current user, filter by it
-      // This ensures the security rule can verify the user is the donor
+      // If donorId is provided and matches current user, show both pending and accepted requests
+      // Otherwise, only show pending requests
+      Query query;
       if (donorId != null &&
           currentUserId != null &&
           donorId == currentUserId) {
         print('   - Filtering by donorId (user is the donor)');
-        query = query.where('donorId', isEqualTo: donorId);
+        print('   - Showing both pending and accepted requests');
+        // For donors, show both pending and accepted requests
+        query = _firestore
+            .collection(AppConstants.requestsCollection)
+            .where('listingId', isEqualTo: listingId)
+            .where('donorId', isEqualTo: donorId)
+            .where('status', whereIn: [
+              RequestStatus.pending.name,
+              RequestStatus.accepted.name,
+            ]);
       } else if (currentUserId != null) {
-        // If not the donor, only show requests where user is the receiver
+        // If not the donor, only show pending requests where user is the receiver
         print('   - Filtering by receiverId (user is a receiver)');
-        query = query.where('receiverId', isEqualTo: currentUserId);
+        query = _firestore
+            .collection(AppConstants.requestsCollection)
+            .where('listingId', isEqualTo: listingId)
+            .where('status', isEqualTo: RequestStatus.pending.name)
+            .where('receiverId', isEqualTo: currentUserId);
       } else {
         print('   - No additional filters (currentUserId is null)');
+        query = _firestore
+            .collection(AppConstants.requestsCollection)
+            .where('listingId', isEqualTo: listingId)
+            .where('status', isEqualTo: RequestStatus.pending.name);
       }
 
       print('   - Query created, listening to stream...');
 
       // Add timeout to prevent infinite loading
-      return query
-          .orderBy('createdAt', descending: false)
-          .snapshots()
-          .timeout(
-            const Duration(seconds: 30),
-            onTimeout: (sink) {
-              print('⏱️ [ListingsService] Stream timeout after 30 seconds');
-              sink.addError(
-                Exception('Request timeout: Stream took too long to respond'),
-              );
-            },
-          )
+      // Note: orderBy requires an index, but we'll handle errors gracefully
+      Stream<QuerySnapshot> stream;
+      try {
+        stream = query.orderBy('createdAt', descending: false).snapshots();
+      } catch (e) {
+        print('⚠️ [ListingsService] Error with orderBy, trying without: $e');
+        // If orderBy fails (missing index), try without it
+        stream = query.snapshots();
+      }
+      
+      return stream.timeout(
+        const Duration(seconds: 30),
+        onTimeout: (sink) {
+          print('⏱️ [ListingsService] Stream timeout after 30 seconds');
+          sink.addError(
+            Exception('Request timeout: Stream took too long to respond'),
+          );
+        },
+      )
           .map((snapshot) {
             print('📦 [ListingsService] Stream snapshot received');
             print('   - Docs count: ${snapshot.docs.length}');
@@ -213,10 +259,20 @@ class ListingsService {
                   final data = doc.data() as Map<String, dynamic>;
                   print('   - Parsing request doc: ${doc.id}');
                   print('   - Doc data keys: ${data.keys.toList()}');
-                  return FoodRequest.fromJson({'id': doc.id, ...data});
+                  
+                  // Ensure id is set correctly (doc.id takes precedence)
+                  final jsonData = <String, dynamic>{'id': doc.id, ...data};
+                  // Remove duplicate id if it exists in data
+                  jsonData['id'] = doc.id;
+                  
+                  print('   - Creating FoodRequest from JSON...');
+                  final request = FoodRequest.fromJson(jsonData);
+                  print('   - ✅ Successfully parsed request: ${request.id}');
+                  return request;
                 } catch (e, stackTrace) {
                   print('❌ [ListingsService] Error parsing doc ${doc.id}: $e');
                   print('   - Stack: $stackTrace');
+                  print('   - Data: ${doc.data()}');
                   throw Exception('Error parsing request ${doc.id}: $e');
                 }
               }).toList();
@@ -294,6 +350,24 @@ class ListingsService {
       return snapshot.docs.isNotEmpty;
     } catch (e) {
       throw Exception('Error checking user request: $e');
+    }
+  }
+
+  /// Get a single request by ID
+  Future<FoodRequest?> getRequest(String requestId) async {
+    try {
+      final doc = await _firestore
+          .collection(AppConstants.requestsCollection)
+          .doc(requestId)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        return FoodRequest.fromJson({'id': doc.id, ...data});
+      }
+      return null;
+    } catch (e) {
+      throw Exception('Error getting request: $e');
     }
   }
 

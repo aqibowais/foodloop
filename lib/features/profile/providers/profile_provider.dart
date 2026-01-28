@@ -72,6 +72,7 @@ class ProfileController extends StateNotifier<ProfileState> {
     String? city,
     String? area,
     String? organizationName,
+    String? phoneNumber,
   }) async {
     final userState = _ref.read(userControllerProvider);
     if (userState.user == null) return false;
@@ -84,6 +85,7 @@ class ProfileController extends StateNotifier<ProfileState> {
         city: city,
         area: area,
         organizationName: organizationName,
+        phoneNumber: phoneNumber,
       );
 
       state = state.copyWith(isEditing: false);

@@ -33,18 +33,48 @@ class FoodRequest {
   bool get isRejected => status == RequestStatus.rejected;
 
   factory FoodRequest.fromJson(Map<String, dynamic> json) {
-    return FoodRequest(
-      id: json['id'] as String,
-      listingId: json['listingId'] as String,
-      donorId: json['donorId'] as String,
-      receiverId: json['receiverId'] as String,
-      status: _parseStatus(json['status'] as String?),
-      message: json['message'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      respondedAt: json['respondedAt'] != null
-          ? DateTime.parse(json['respondedAt'] as String)
-          : null,
-    );
+    try {
+      // Handle createdAt - can be String or Timestamp
+      DateTime createdAt;
+      if (json['createdAt'] is String) {
+        createdAt = DateTime.parse(json['createdAt'] as String);
+      } else {
+        // If it's a Firestore Timestamp, convert it
+        final timestamp = json['createdAt'];
+        if (timestamp != null) {
+          createdAt = (timestamp as dynamic).toDate();
+        } else {
+          throw Exception('createdAt is null');
+        }
+      }
+      
+      // Handle respondedAt - can be String, Timestamp, or null
+      DateTime? respondedAt;
+      if (json['respondedAt'] != null) {
+        if (json['respondedAt'] is String) {
+          respondedAt = DateTime.parse(json['respondedAt'] as String);
+        } else {
+          // If it's a Firestore Timestamp, convert it
+          respondedAt = (json['respondedAt'] as dynamic).toDate();
+        }
+      }
+      
+      return FoodRequest(
+        id: json['id'] as String? ?? '',
+        listingId: json['listingId'] as String? ?? '',
+        donorId: json['donorId'] as String? ?? '',
+        receiverId: json['receiverId'] as String? ?? '',
+        status: _parseStatus(json['status'] as String?),
+        message: json['message'] as String?,
+        createdAt: createdAt,
+        respondedAt: respondedAt,
+      );
+    } catch (e, stackTrace) {
+      print('❌ [FoodRequest] Error parsing JSON: $e');
+      print('   - JSON: $json');
+      print('   - Stack: $stackTrace');
+      rethrow;
+    }
   }
 
   static RequestStatus _parseStatus(String? status) {

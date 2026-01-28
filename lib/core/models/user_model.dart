@@ -13,6 +13,7 @@ class UserModel {
   final String? city;
   final String? area;
   final String? organizationName; // optional, for NGOs
+  final String? phoneNumber; // Pakistani phone number (optional)
   final DateTime createdAt;
 
   const UserModel({
@@ -24,6 +25,7 @@ class UserModel {
     this.city,
     this.area,
     this.organizationName,
+    this.phoneNumber,
     required this.createdAt,
   });
 
@@ -39,6 +41,7 @@ class UserModel {
       city: json['city'] as String?,
       area: json['area'] as String?,
       organizationName: json['organizationName'] as String?,
+      phoneNumber: json['phoneNumber'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
   }
@@ -63,6 +66,7 @@ class UserModel {
       'city': city,
       'area': area,
       'organizationName': organizationName,
+      'phoneNumber': phoneNumber,
       'createdAt': createdAt.toIso8601String(),
     };
   }
@@ -76,6 +80,7 @@ class UserModel {
     String? city,
     String? area,
     String? organizationName,
+    String? phoneNumber,
     DateTime? createdAt,
   }) {
     return UserModel(
@@ -87,6 +92,7 @@ class UserModel {
       city: city ?? this.city,
       area: area ?? this.area,
       organizationName: organizationName ?? this.organizationName,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
       createdAt: createdAt ?? this.createdAt,
     );
   }

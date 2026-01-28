@@ -156,6 +156,8 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
     );
 
     if (success && mounted) {
+      ref.invalidate(availableListingsProvider);
+      ref.invalidate(donorListingsProvider(user.uid));
       AppToast.success(context, 'Listing created successfully!');
       Navigator.pop(context);
     } else if (mounted) {
@@ -456,7 +458,8 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                 SizedBox(
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: listingsState.isCreating ||
+                    onPressed:
+                        listingsState.isCreating ||
                             listingsState.isUploadingImages
                         ? null
                         : _submitListing,
@@ -468,7 +471,8 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                       ),
                       elevation: 0,
                     ),
-                    child: listingsState.isCreating ||
+                    child:
+                        listingsState.isCreating ||
                             listingsState.isUploadingImages
                         ? const SizedBox(
                             height: 20,
@@ -515,10 +519,7 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
       children: [
         Text(
           label,
-          style: AppTypography.body(
-            color: AppColors.pureWhite,
-            fontSize: 14,
-          ),
+          style: AppTypography.body(color: AppColors.pureWhite, fontSize: 14),
         ),
         const SizedBox(height: 8),
         TextFormField(
@@ -543,7 +544,10 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: AppColors.accentGreen, width: 2),
+              borderSide: const BorderSide(
+                color: AppColors.accentGreen,
+                width: 2,
+              ),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
@@ -581,4 +585,3 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
     }
   }
 }
-

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:foodloop/features/profile/presentation/screens/profile_screen.dart';
 
 import '../../../../core/models/food_listing_model.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -7,7 +8,6 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../listings/presentation/screens/create_listing_screen.dart';
 import '../../../listings/presentation/screens/listing_detail_screen.dart';
 import '../../../listings/providers/listings_provider.dart';
-import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../user/providers/user_provider.dart';
 import '../../../auth/providers/auth_provider.dart';
 
@@ -30,6 +30,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _CategoryItem(icon: Icons.local_drink, label: 'Beverages'),
   ];
 
+  void _navigateToProfile() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -42,13 +49,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  void _navigateToProfile() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const ProfileScreen()),
-    );
   }
 
   FoodType? _getSelectedFoodType() {
@@ -129,6 +129,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(width: 12),
                   // Profile icon button
                   GestureDetector(
                     onTap: _navigateToProfile,
@@ -153,29 +154,56 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             // Search bar
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Container(
-                height: 50,
-                decoration: BoxDecoration(
-                  color: AppColors.cardDark,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.lightGrey),
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  style: AppTypography.body(color: AppColors.pureWhite),
-                  decoration: InputDecoration(
-                    hintText: 'Search food listings...',
-                    hintStyle: AppTypography.body(color: AppColors.grey),
-                    prefixIcon: const Icon(
-                      Icons.search,
-                      color: AppColors.grey,
-                      size: 22,
+              child: TextFormField(
+                controller: _searchController,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+                cursorColor: Colors.white,
+                decoration: InputDecoration(
+                  hintText: 'Search food listings...',
+                  hintStyle: const TextStyle(
+                    color: Colors.white38,
+                    fontSize: 16,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Colors.white54,
+                    size: 20,
+                  ),
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.05),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(
+                      color: Colors.white.withOpacity(0.1),
                     ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(
+                      color: Colors.white.withOpacity(0.1),
                     ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(
+                      color: Colors.white.withOpacity(0.32),
+                      width: 2,
+                    ),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(
+                      color: Colors.red.withOpacity(0.8),
+                      width: 1,
+                    ),
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Colors.red, width: 2),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
                   ),
                 ),
               ),
@@ -244,92 +272,92 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             // Content area
             Expanded(
-              child: listingsAsync.when(
-                data: (allListings) {
-                  // Apply local filters
-                  final listings = _applyLocalFilters(allListings);
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  // Invalidate the provider to refresh
+                  ref.invalidate(availableListingsProvider);
+                  // Wait a bit for the refresh to complete
+                  await Future.delayed(const Duration(milliseconds: 500));
+                },
+                color: AppColors.accentGreen,
+                backgroundColor: AppColors.cardDark,
+                child: listingsAsync.when(
+                  data: (allListings) {
+                    // Apply local filters
+                    final listings = _applyLocalFilters(allListings);
 
-                  if (listings.isEmpty) {
-                    return ListView(
-                      padding: const EdgeInsets.all(20),
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(40),
-                          decoration: BoxDecoration(
-                            color: AppColors.cardDark,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.lightGrey),
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.food_bank_outlined,
-                                size: 64,
-                                color: AppColors.grey,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No listings found',
-                                style: AppTypography.body(
+                    if (listings.isEmpty) {
+                      return ListView(
+                        padding: const EdgeInsets.all(20),
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(40),
+                            decoration: BoxDecoration(
+                              color: AppColors.cardDark,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.lightGrey),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.food_bank_outlined,
+                                  size: 64,
                                   color: AppColors.grey,
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Be the first to share food!',
-                                style: AppTypography.bodySmall(
-                                  color: AppColors.grey,
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              ElevatedButton(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const CreateListingScreen(),
-                                    ),
-                                  );
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.accentGreen,
-                                  foregroundColor: AppColors.black,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(24),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No listings found',
+                                  style: AppTypography.body(
+                                    color: AppColors.grey,
                                   ),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.add, size: 20),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Create Listing',
-                                      style: AppTypography.button(
-                                        color: AppColors.black,
-                                      ),
-                                    ),
-                                  ],
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Be the first to share food!',
+                                  style: AppTypography.bodySmall(
+                                    color: AppColors.grey,
+                                  ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 24),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const CreateListingScreen(),
+                                      ),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.accentGreen,
+                                    foregroundColor: AppColors.black,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(24),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.add, size: 20),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Create Listing',
+                                        style: AppTypography.button(
+                                          color: AppColors.black,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
-                    );
-                  }
+                        ],
+                      );
+                    }
 
-                  return RefreshIndicator(
-                    onRefresh: () async {
-                      // Invalidate the provider to refresh
-                      ref.invalidate(availableListingsProvider);
-                      // Wait a bit for the refresh to complete
-                      await Future.delayed(const Duration(milliseconds: 500));
-                    },
-                    color: AppColors.accentGreen,
-                    backgroundColor: AppColors.cardDark,
-                    child: ListView(
+                    return ListView(
                       padding: const EdgeInsets.all(20),
                       children: [
                         // Available Listings section
@@ -392,29 +420,51 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           );
                         }).toList(),
                       ],
-                    ),
-                  );
-                },
-                loading: () => const Center(
-                  child: CircularProgressIndicator(
-                    color: AppColors.accentGreen,
-                  ),
-                ),
-                error: (error, stack) => Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.error_outline, size: 64, color: Colors.red),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Error loading listings',
-                        style: AppTypography.body(color: Colors.red),
+                    );
+                  },
+                  loading: () => ListView(
+                    children: const [
+                      SizedBox(height: 200),
+                      Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.accentGreen,
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        error.toString(),
-                        style: AppTypography.bodySmall(color: AppColors.grey),
-                        textAlign: TextAlign.center,
+                    ],
+                  ),
+                  error: (error, stack) => ListView(
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      const SizedBox(height: 100),
+                      Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 64,
+                              color: Colors.red,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Error loading listings',
+                              style: AppTypography.body(color: Colors.red),
+                            ),
+                            const SizedBox(height: 8),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
+                              child: Text(
+                                error.toString(),
+                                style: AppTypography.bodySmall(
+                                  color: AppColors.grey,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -422,42 +472,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
           ],
-        ),
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: AppColors.cardDark,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Container(
-            height: 60,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(Icons.home, 'Home', true),
-                _buildNavItem(
-                  Icons.notifications_outlined,
-                  'Notifications',
-                  false,
-                ),
-                _buildNavItem(Icons.shopping_cart_outlined, 'My Orders', false),
-                _buildNavItem(
-                  Icons.person_outline,
-                  'Profile',
-                  false,
-                  onTap: _navigateToProfile,
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );
@@ -483,19 +497,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final isDonor = currentUserId == listing.donorId;
     final requestCountAsync = isDonor
         ? ref.watch(
-            listingRequestCountProvider({
-              'listingId': listing.id,
-              'donorId': listing.donorId,
-            }),
+            listingRequestCountProvider(
+              ListingRequestCountKey(
+                listingId: listing.id,
+                donorId: listing.donorId,
+              ),
+            ),
           )
         : null;
     final hasRequestedAsync =
         !isDonor && currentUserId != null && listing.isAvailable
         ? ref.watch(
-            hasUserRequestedProvider({
-              'listingId': listing.id,
-              'receiverId': currentUserId,
-            }),
+            hasUserRequestedProvider(
+              HasUserRequestedKey(
+                listingId: listing.id,
+                receiverId: currentUserId,
+              ),
+            ),
           )
         : null;
     return Container(
@@ -763,35 +781,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildImagePlaceholder() {
     return Center(child: Icon(Icons.fastfood, size: 64, color: AppColors.grey));
-  }
-
-  Widget _buildNavItem(
-    IconData icon,
-    String label,
-    bool isSelected, {
-    VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: isSelected ? AppColors.accentGreen : AppColors.grey,
-            size: 24,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: AppTypography.caption(
-              color: isSelected ? AppColors.accentGreen : AppColors.grey,
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Color _getFoodTypeColor(FoodType type) {

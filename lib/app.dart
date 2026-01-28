@@ -6,7 +6,9 @@ import 'core/services/onboarding_service.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/onboarding/presentation/screens/intro_screen.dart';
-import 'features/home/presentation/screens/home_screen.dart';
+import 'features/home/presentation/screens/main_navigation_screen.dart';
+import 'features/user/providers/user_provider.dart';
+import 'features/admin/presentation/screens/admin_dashboard_screen.dart';
 
 /// Decides whether to show auth flow or main app based on Firebase auth state.
 class AuthWrapper extends ConsumerStatefulWidget {
@@ -52,6 +54,7 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper> {
               ? const LoginScreen()
               : const OnboardingScreen();
         }
+        // Check if user is admin and navigate to dashboard
         return const _MainShell();
       },
       loading: () => const _SplashFallback(),
@@ -81,11 +84,20 @@ class _SplashFallback extends StatelessWidget {
 }
 
 /// Main shell for the authenticated part of FoodLoop.
-class _MainShell extends StatelessWidget {
+class _MainShell extends ConsumerWidget {
   const _MainShell();
 
   @override
-  Widget build(BuildContext context) {
-    return const HomeScreen();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userState = ref.watch(userControllerProvider);
+    final user = userState.user;
+    
+    // If user is admin, show admin dashboard
+    if (user != null && user.isAdmin) {
+      return const AdminDashboardScreen();
+    }
+    
+    // Otherwise show regular home screen with navigation
+    return const MainNavigationScreen();
   }
 }
